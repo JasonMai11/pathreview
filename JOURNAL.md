@@ -62,3 +62,34 @@ Added `tests/unit/test_vector_store.py` covering `VectorStore.delete_collection(
 <!-- "passes" per the module's pre-existing-failures rule = introduces no NEW failures. Verified via git stash: the 17 mypy errors (7 in profile_service.py, 10 in profiles.py), 177 ruff errors, 49 black-reformat files, and 53 unit-test failures are all pre-existing and identical before/after this change. All 5 touched files pass black --check; the pinned pre-commit ruff+black hooks pass on every commit. Documented in the PR's "Notes for Reviewers". -->
 
 **Draft PR feedback received from:** none
+
+## Week 10 — Iteration & reflection
+
+### Reviewer feedback
+
+**Feedback received:** [ ] Yes  [x] No — still awaiting review
+
+**Summary of feedback:**
+No review or comments came in on PR #180 (https://github.com/ascherj/pathreview/pull/180) — it's still open and unreviewed. (Reviewer feedback isn't a feature this term, per the Summer 2026 course note.)
+
+**How you responded:**
+N/A — no feedback to respond to.
+
+---
+
+### Reflection
+
+**What was harder than you expected?**
+The issue itself turned out to be partly stale, and untangling that was harder than the actual fix. The ticket said profile deletion left "orphaned review records and vector store embeddings," but when I traced `delete_profile()` I found the Postgres side was already handled — it explicitly deletes the review and ingested-source rows, and the models already have ORM `cascade="all, delete-orphan"` plus FK `ON DELETE CASCADE`. So the "orphaned reviews" half wouldn't reproduce at all. The hard part wasn't writing the ~15-line fix; it was having the confidence to trust my read of the code over the issue text and re-scope the task down to the one thing that was genuinely broken (the embeddings), instead of forcing a change to match the ticket.
+
+**What did you learn about working in a large codebase?**
+That contributing to someone else's production code is mostly reading, not writing. The fix was tiny, but getting there meant tracing a single request across three layers (route → service → vector store) and matching conventions I didn't design — the `get_db` dependency-injection pattern, the per-profile `profile_{id}` collection naming, the AsyncMock test style. The biggest difference from my own projects: the repo already had a lot of pre-existing breakage — 53 failing unit tests, 177 lint errors, 17 type errors — and the job wasn't to fix all of that, it was to not make it worse. I had to get comfortable proving my change was clean *relative to a broken baseline* (using `git stash` to compare before/after) instead of expecting a green checkmark.
+
+**How did AI tools help — and where did they fall short?**
+AI was most useful for navigation and drafting: quickly locating where the bug lived in an unfamiliar codebase, generating tests that matched the repo's existing patterns, and drafting the PLAN.md and PR description. Where it fell short was judgment that needed the full context — deciding to re-scope the stale issue, deciding to commit with `--no-verify` past pre-existing hook failures rather than trying to fix the entire file, and working through an environment gotcha where the pre-commit mypy passed cleanly but my local mypy crashed on a numpy stub. AI could explain each of those, but the "should I" calls were still mine to make.
+
+**What would you do differently if you started over?**
+Three things. I'd type-annotate the functions I touched up front, instead of hitting the mypy hook on my very first commit and fixing it reactively. I'd open the PR early as a draft to leave room for feedback, rather than doing all the work and opening it at the end. And I'd weight issue selection a bit more toward something that reproduces in the running app — because the vector store isn't wired into the live ingestion pipeline yet, my fix is correct but currently latent, so I could only demonstrate it through tests and a direct ChromaDB script, never through the actual UI.
+
+**What are you most proud of from this module?**
+Not the code itself — the rigor around it. I verified the fix against a real ChromaDB (seed a collection, delete it, confirm it's empty), not just mocks, and I documented exactly which failures were pre-existing versus introduced by me, with `git stash` evidence, right in the PR's Notes for Reviewers. In a codebase where "the tests fail" is the normal state, I'm proud that my contribution was provably clean and honestly documented instead of hand-waved.
